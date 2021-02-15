@@ -2,11 +2,14 @@ from flask import Flask
 from flask_cors import CORS
 from flask import request
 from flask import jsonify
-import tweet
+from tweetqueue import tweet
+import time
+import threading
 
 app = Flask(__name__)
 CORS(app)
 
+q_thread = threading.Thread()
 
 @app.route('/')
 def index():
@@ -36,7 +39,17 @@ def tweet_handler():
     tweet.tweet('hello')
     return "received!"
 
+def queue_handler():
+    global q_thread
+    q_thread = threading.Timer(1, parse_queue, ())
+    q_thread.start()
 
+def parse_queue():
+    global q_thread
+    print('hello from thread')
+    q_thread = threading.Timer(1, parse_queue, ())
+    q_thread.start()
     
 
+queue_handler()
 app.run(host='0.0.0.0', port=8080)

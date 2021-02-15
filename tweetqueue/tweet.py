@@ -1,10 +1,12 @@
 import os
+import json
 from TwitterAPI import TwitterAPI
 import requests
 from urllib.parse import parse_qs
 from requests_oauthlib import OAuth1
-from user import User
+from tweetqueue.user import User
 from typing import Dict
+from replit import db
 
 consumer_key = os.environ['CONSUMER_KEY']
 consumer_secret = os.environ['CONSUMER_SECRET']
@@ -45,13 +47,20 @@ def generate_sign_in_link(token: str):
     return sign_in_link
 
 
-def get_user(verifier:str, oauth_token:str):
+def get_user(verifier: str, oauth_token: str):
     credentials = get_credentials(verifier, oauth_token)
     access_token_key = credentials.get('oauth_token')
     access_token_secret = credentials.get('oauth_token_secret')
-    user_id = credentials.get('user_id')
-    screen_name = credentials.get('screen_name')
-    return User(access_token_key, access_token_secret, user_id, screen_name)
+    user_info = get_user_info(access_token_key, access_token_secret)
+    user_dict = {
+        'access_token_key': access_token_key,
+        'access_token_secret': access_token_secret,
+        'id': user_info.id,
+        'name': user_info.name
+    }
+    user = User(user_dict)
+    save_user(user)
+    return user
 
 
 def get_credentials(verifier: str, oauth_token: str) -> Dict[str, str]:
@@ -59,12 +68,23 @@ def get_credentials(verifier: str, oauth_token: str) -> Dict[str, str]:
                    consumer_secret,
                    resource_owner_key=oauth_token,
                    verifier=verifier)
-    
+
     response = requests.post(url='https://api.twitter.com/oauth/access_token',
-                      auth=oauth)
+                             auth=oauth)
     # response is in bytes, decode to utf-8 string
     content = response.content.decode('utf-8')
     credentials = parse_qs(content)
     # credentials dict is in form {str: List[str]} where List[str] has 1 element.
     # Transform to {str: str}
-    return {key:value[0] for (key, value) in credentials.items()}
+    return {key: value[0] for (key, value) in credentials.items()}
+
+
+def get_user_info(key: str, secret: str):
+    api = TwitterAPI(consumer_key, consumer_secret, key, secret)
+    res = api.request('account/verify_credentials')
+    res_dict = json.loads(res.text)
+    return res_dict
+
+
+def save_user(user):
+    db[user.id] = user
