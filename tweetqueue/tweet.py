@@ -52,15 +52,23 @@ def get_user(verifier: str, oauth_token: str):
     access_token_key = credentials.get('oauth_token')
     access_token_secret = credentials.get('oauth_token_secret')
     user_info = get_user_info(access_token_key, access_token_secret)
-    user_dict = {
+    if(user_info['id'] in db):
+        user_str: str = db[user_info['id']]
+        user: User = User.deserialize(user_str)
+        user.name = user_info['name']
+        user.id = user_info['id']
+        return user
+    else:
+        user_dict = {
         'access_token_key': access_token_key,
         'access_token_secret': access_token_secret,
-        'id': user_info.id,
-        'name': user_info.name
-    }
-    user = User(user_dict)
+        'id': user_info['id'],
+        'name': user_info['name']
+        }
+        user = User(**user_dict)
     save_user(user)
     return user
+
 
 
 def get_credentials(verifier: str, oauth_token: str) -> Dict[str, str]:
@@ -83,8 +91,23 @@ def get_user_info(key: str, secret: str):
     api = TwitterAPI(consumer_key, consumer_secret, key, secret)
     res = api.request('account/verify_credentials')
     res_dict = json.loads(res.text)
+    print(res_dict)
     return res_dict
 
 
-def save_user(user):
-    db[user.id] = user
+def save_user(user: User):
+    db[user.id] = user.serialze()
+
+
+def tweet(text: str, user: User, test: bool = False):
+    if test:
+        print(f'Pretending to tweet: {test}')
+        return
+    api = TwitterAPI(consumer_key, consumer_secret, user.access_token_key,
+                     user.access_token_secret)
+    r = api.request('statuses/update', {'status': text})
+    print(r.status_code)
+
+def add_tweet(user: User, text: str):
+    user.add_tweet(text)
+
